@@ -3,10 +3,10 @@
 //  StatsPlugin
 //
 //  Newspaper / magazine layout:
-//    Masthead  |  Headline + Deck  |  Stat Strip  |
-//    Two-column body (narrative + data table)     |
-//    Breakdown boxes (Tools / Skills / MCP)       |
-//    Rhythm (week) / Highlights (week)            |
+//    Summary Header  |  Headline + Deck  |  Stat Strip  |
+//    Data sheet                                       |
+//    Breakdown boxes                                   |
+//    Rhythm (week) / Highlights (week)                |
 //    Editor's Note (optional)
 //
 
@@ -32,7 +32,7 @@ struct StatsView: View {
                     .onAppear {
                         if didTriggerNote { return }
                         didTriggerNote = true
-                        if let yesterday = week.days.last {
+                        if let yesterday = analytics.yesterdayReport ?? week.days.last {
                             PersonalRecords.updateIfBroken(day: yesterday)
                             if notes.isEnabled {
                                 // Trigger the note for the current mode only.
@@ -85,7 +85,7 @@ struct StatsView: View {
 
     @ViewBuilder
     private func content(week: WeeklyReport, lastWeek: WeeklyReport?) -> some View {
-        let yesterday = week.days.last ?? DailyReport.empty(date: Date())
+        let yesterday = analytics.yesterdayReport ?? week.days.last ?? DailyReport.empty(date: Date())
         let isDay = mode == .day
 
         VStack(alignment: .leading, spacing: 0) {
@@ -212,7 +212,7 @@ struct StatsView: View {
             date = L10n.dayDate(yesterday.date).uppercased()
         } else {
             let start = week.days.first?.date ?? yesterday.date
-            date = L10n.weekRange(start, yesterday.date).uppercased()
+            date = L10n.weekRange(start, Date()).uppercased()
         }
         return "\(L10n.isChinese ? "代码岛" : "CODE ISLAND") · \(date)"
     }
@@ -425,32 +425,15 @@ struct StatsView: View {
 
     @ViewBuilder
     private func twoColumnBody(week: WeeklyReport, yesterday: DailyReport, isDay: Bool, lastWeek: WeeklyReport?) -> some View {
-        HStack(alignment: .top, spacing: 18) {
-            // Left: narrative / insight
-            VStack(alignment: .leading, spacing: 10) {
-                Text(L10n.isChinese ? "叙述" : "THE STORY")
-                    .font(.system(size: 8, weight: .bold))
-                    .tracking(1.8)
-                    .foregroundColor(Self.ink.opacity(0.42))
-                bodyStyled(bodyText(week: week, yesterday: yesterday, isDay: isDay, lastWeek: lastWeek))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Vertical rule separator
-            Rectangle()
-                .fill(Self.ink.opacity(0.12))
-                .frame(width: 0.5)
-
-            // Right: data sheet (key/value table)
-            VStack(alignment: .leading, spacing: 10) {
-                Text(L10n.isChinese ? "数据" : "BY THE NUMBERS")
-                    .font(.system(size: 8, weight: .bold))
-                    .tracking(1.8)
-                    .foregroundColor(Self.ink.opacity(0.42))
-                dataSheet(week: week, yesterday: yesterday, isDay: isDay)
-            }
-            .frame(width: 180, alignment: .leading)
+        // Data sheet (full width — narrative column removed)
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L10n.isChinese ? "数据" : "BY THE NUMBERS")
+                .font(.system(size: 8, weight: .bold))
+                .tracking(1.8)
+                .foregroundColor(Self.ink.opacity(0.42))
+            dataSheet(week: week, yesterday: yesterday, isDay: isDay)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Data sheet (right column of two-column body)
@@ -512,90 +495,6 @@ struct StatsView: View {
     private func truncate(_ str: String, _ maxLen: Int) -> String {
         if str.count <= maxLen { return str }
         return String(str.prefix(maxLen)) + "…"
-    }
-
-    // MARK: - Body text (used by The Story column)
-
-    private func bodyStyled(_ text: String) -> some View {
-        var parts: [(String, Bool)] = []
-        var remaining = text
-        while let openRange = remaining.range(of: "<hi>") {
-            let before = String(remaining[remaining.startIndex..<openRange.lowerBound])
-            if !before.isEmpty { parts.append((before, false)) }
-            remaining = String(remaining[openRange.upperBound...])
-            if let closeRange = remaining.range(of: "</hi>") {
-                let highlighted = String(remaining[remaining.startIndex..<closeRange.lowerBound])
-                parts.append((highlighted, true))
-                remaining = String(remaining[closeRange.upperBound...])
-            }
-        }
-        if !remaining.isEmpty { parts.append((remaining, false)) }
-
-        var result = Text("")
-        for (chunk, hi) in parts {
-            let t = Text(chunk)
-                .font(.system(size: 13, weight: hi ? .semibold : .regular, design: .serif))
-                .foregroundColor(hi ? Self.lime : Self.ink.opacity(0.78))
-            result = result + t
-        }
-        return result
-            .lineSpacing(5)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func bodyText(week: WeeklyReport, yesterday: DailyReport, isDay: Bool, lastWeek: WeeklyReport?) -> String {
-        if isDay {
-            let inTok = Self.formatTokens(yesterday.inputTokens)
-            let outTok = Self.formatTokens(yesterday.outputTokens)
-            let cost = Self.formatCost(yesterday.totalCostUsd)
-            let models = yesterday.modelUsage.keys.map(Self.shortModelName).joined(separator: ", ")
-            if !models.isEmpty {
-                return L10n.tpl("body.dayTokens", [
-                    "in": "<hi>\(inTok)</hi>",
-                    "out": "<hi>\(outTok)</hi>",
-                    "cost": cost,
-                    "models": models
-                ])
-            }
-            let turns = yesterday.turnCount
-            return L10n.tpl("body.dayNoProject", [
-                "turns": "<hi>\(turns)</hi>",
-                "cost": cost
-            ])
-        } else {
-            let active = week.days.filter(\.hasActivity).count
-            let totalTok = Self.formatTokens(week.inputTokens + week.outputTokens)
-            return L10n.tpl("body.week", [
-                "activeDays": "<hi>\(active)</hi>",
-                "tokens": totalTok
-            ])
-        }
-    }
-
-    private func smartInsight(yesterday: DailyReport, week: WeeklyReport, lastWeek: WeeklyReport?) -> String? {
-        let totalTok = yesterday.inputTokens + yesterday.outputTokens
-        if totalTok > 500_000 {
-            return L10n.tpl("insight.heavyTokenUsage", ["n": "<hi>\(Self.formatTokens(totalTok))</hi>"])
-        }
-        if yesterday.totalCostUsd > 0.50 {
-            return L10n.s("insight.premiumCost")
-        }
-        let cachePct = totalTok > 0
-            ? Int(Double(yesterday.cacheReadTokens) / Double(totalTok + yesterday.cacheReadTokens) * 100)
-            : 0
-        if cachePct >= 70 {
-            return L10n.s("insight.highCache")
-        }
-        let multiModel = yesterday.modelUsage.count >= 2
-        if multiModel {
-            let models = yesterday.modelUsage.keys.map(Self.shortModelName).joined(separator: ", ")
-            return L10n.tpl("insight.multiModel", ["models": models])
-        }
-        if week.streak == 3 || week.streak == 7 || week.streak == 14 {
-            return L10n.tpl("insight.streakMilestone", ["n": "<hi>\(week.streak)</hi>"])
-        }
-        return nil
     }
 
     // MARK: - Week rhythm

@@ -130,21 +130,44 @@ private func queryDailyBuckets(
     return result
 }
 
-/// Compute 14 days of reports.
+/// Compute 14 days aligned to Monday week boundaries.
 private func computeTwoWeeks(referenceDay: Date) async -> (WeeklyReport, WeeklyReport) {
     let cal = Calendar.current
-    let dayStarts: [Date] = (0..<14).map { offset in
-        cal.date(byAdding: .day, value: -offset, to: referenceDay) ?? referenceDay
-    }.reversed()
 
-    let startTs = Int((dayStarts.first ?? referenceDay).timeIntervalSince1970)
-    let endTs = Int((referenceDay.addingTimeInterval(86400)).timeIntervalSince1970)
+    // Find the most recent Monday (or today if today is Monday).
+    // In gregorian calendar: weekday 1=Sun, 2=Mon, ..., 7=Sat
+    let weekday = cal.component(.weekday, from: referenceDay)
+    let daysFromMonday = (weekday - 2 + 7) % 7 // subtract this many days to reach Monday
+    guard let thisMonday = cal.date(byAdding: .day, value: -daysFromMonday, to: referenceDay) else {
+        // Fallback to rolling 7-day window
+        let dayStarts: [Date] = (0..<14).map { offset in
+            cal.date(byAdding: .day, value: -offset, to: referenceDay) ?? referenceDay
+        }.reversed()
+        let startTs = Int((dayStarts.first ?? referenceDay).timeIntervalSince1970)
+        let endTs = Int((referenceDay.addingTimeInterval(86400)).timeIntervalSince1970)
+        let buckets = await queryDailyBuckets(from: startTs, to: endTs, dayStarts: dayStarts)
+        let days = buckets.map { $0.finalize() }
+        return (
+            WeeklyReport.aggregate(Array(days.suffix(7))),
+            WeeklyReport.aggregate(Array(days.prefix(7)))
+        )
+    }
+
+    let lastMonday = cal.date(byAdding: .day, value: -7, to: thisMonday)!
+
+    // Generate 14 days: last Monday through this Sunday
+    let dayStarts: [Date] = (0..<14).map { offset in
+        cal.date(byAdding: .day, value: offset, to: lastMonday) ?? thisMonday
+    }
+
+    let startTs = Int(dayStarts.first!.timeIntervalSince1970)
+    let endTs = Int(cal.date(byAdding: .day, value: 7, to: thisMonday)!.timeIntervalSince1970)
 
     let buckets = await queryDailyBuckets(from: startTs, to: endTs, dayStarts: dayStarts)
     let days = buckets.map { $0.finalize() }
     return (
-        WeeklyReport.aggregate(Array(days.suffix(7))),
-        WeeklyReport.aggregate(Array(days.prefix(7)))
+        WeeklyReport.aggregate(Array(days.suffix(7))), // this week: thisMonday..thisSunday
+        WeeklyReport.aggregate(Array(days.prefix(7)))  // last week: lastMonday..lastSunday
     )
 }
 
@@ -215,8 +238,9 @@ final class AnalyticsCollector: ObservableObject {
         defer { isComputing = false }
 
         let referenceDay = Self.todayStart()
-        if let current = thisWeek?.days.last,
-           Calendar.current.isDate(current.date, inSameDayAs: referenceDay) {
+        // Check if today is already covered in the cached thisWeek
+        if let days = thisWeek?.days,
+           days.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: referenceDay) }) {
             hasLoadedOnce = true
             return
         }
@@ -226,7 +250,8 @@ final class AnalyticsCollector: ObservableObject {
         }.value
         self.thisWeek = tw
         self.lastWeek = lw
-        self.yesterdayReport = tw.days.last
+        self.yesterdayReport = tw.days.first(where: { Calendar.current.isDate($0.date, inSameDayAs: referenceDay) })
+            ?? tw.days.last
         self.hasLoadedOnce = true
         Self.saveCache(CachedAnalytics(thisWeek: tw, lastWeek: lw))
     }

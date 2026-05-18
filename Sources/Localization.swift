@@ -41,10 +41,10 @@ enum L10n {
     // MARK: - Chinese
 
     private static let zh: [String: String] = [
-        "mode.day": "昨天",
+        "mode.day": "今天",
         "mode.week": "本周",
 
-        "eyebrow.day": "昨天",
+        "eyebrow.day": "今天",
         "eyebrow.week": "本周",
 
         "hero.unit.day": "小时 专注",
@@ -71,12 +71,6 @@ enum L10n {
         "hl.weekSteady": "一个平稳的一周",
         "hl.weekUneven": "一个不均衡的一周",
         "hl.weekQuiet": "一个安静的一周",
-
-        // Body sentences
-        "body.dayTokens": "{in} 输入 · {out} 输出, 花费 {cost}, 模型: {models}",
-        "body.dayNoProject": "{turns} 次请求, 花费 {cost}",
-        "body.week": "{activeDays} 天活跃, 总计 {tokens} Token",
-        "body.projectSplit": "分布在 {n} 个项目上",
 
         "label.session": "会话",
         "label.deepSession": "深度会话",
@@ -108,20 +102,6 @@ enum L10n {
         "highlight.vsLastWeek": "花费比上周多 {pct}%",
         "highlight.vsLastWeekDown": "花费比上周少 {pct}%",
         "highlight.files": "编辑了 {n} 个文件",
-
-        // Insight line (replaces body when detected)
-        "insight.heavyTokenUsage": "今日 Token 消耗 {n}，异常繁忙",
-        "insight.premiumCost": "今日费用较高，检查是否使用了高成本模型",
-        "insight.highCache": "缓存命中率很高，上下文复用良好",
-        "insight.multiModel": "今日使用了 {models} 模型",
-        "insight.newRecordTurns": "今日 {n} 次请求创历史新高",
-        "insight.newRecordFocus": "今日专注时长创历史新高",
-        "insight.longestFlow": "近两周最长的一次不间断专注",
-        "insight.backAfter": "时隔 {n} 天再次回到 {project}",
-        "insight.heavyShip": "一个产出密集的日子",
-        "insight.exploration": "一个探索与思考的日子",
-        "insight.digging": "大量调试与搜索",
-        "insight.streakMilestone": "连续活跃第 {n} 天",
 
         // Empty / loading
         "state.loading": "正在扫描活动数据",
@@ -156,10 +136,10 @@ enum L10n {
     // MARK: - English
 
     private static let en: [String: String] = [
-        "mode.day": "Yesterday",
+        "mode.day": "Today",
         "mode.week": "This Week",
 
-        "eyebrow.day": "YESTERDAY",
+        "eyebrow.day": "TODAY",
         "eyebrow.week": "THIS WEEK",
 
         "hero.unit.day": "h focus",
@@ -185,11 +165,6 @@ enum L10n {
         "hl.weekSteady": "A steady week",
         "hl.weekUneven": "An uneven week",
         "hl.weekQuiet": "A quiet week",
-
-        "body.dayTokens": "{in} in / {out} out, {cost}, models: {models}",
-        "body.dayNoProject": "{turns} requests, {cost} total",
-        "body.week": "Active on {activeDays} days, {tokens} total tokens",
-        "body.projectSplit": "spread across {n} projects",
 
         "label.session": "session",
         "label.deepSession": "deep session",
@@ -219,19 +194,6 @@ enum L10n {
         "highlight.vsLastWeek": "{pct}% more cost than last week",
         "highlight.vsLastWeekDown": "{pct}% less cost than last week",
         "highlight.files": "{n} files touched",
-
-        "insight.heavyTokenUsage": "Heavy token day — {n} total consumed",
-        "insight.premiumCost": "Higher-than-usual cost today — premium model in use?",
-        "insight.highCache": "Excellent cache hit rate — good context reuse",
-        "insight.multiModel": "Multiple models used today: {models}",
-        "insight.newRecordTurns": "{n} requests — a new daily high",
-        "insight.newRecordFocus": "longest focus session of any day you've tracked",
-        "insight.longestFlow": "your longest deep stretch in two weeks",
-        "insight.backAfter": "Back on {project} after {n} quiet days",
-        "insight.heavyShip": "A heavy shipping day",
-        "insight.exploration": "A day of exploration and thinking",
-        "insight.digging": "A day of debugging and search",
-        "insight.streakMilestone": "{n}-day streak and counting",
 
         "state.loading": "Scanning activity data",
         "state.empty": "No activity yet",
