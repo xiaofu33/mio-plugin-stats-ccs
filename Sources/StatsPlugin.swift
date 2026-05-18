@@ -24,4 +24,11 @@ final class StatsPlugin: NSObject, MioPlugin {
     func makeView() -> NSView {
         NSHostingView(rootView: StatsView())
     }
+
+    func viewForSlot(_ slot: String, context: [String: Any]) -> NSView? {
+        guard slot == "standby" else { return nil }
+        let hosting = NSHostingView(rootView: StandbyStatsView())
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        return hosting
+    }
 }

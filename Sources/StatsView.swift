@@ -207,7 +207,6 @@ struct StatsView: View {
     }
 
     private static func brandLine(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> String {
-        let cal = Calendar.current
         let date: String
         if isDay {
             date = L10n.dayDate(yesterday.date).uppercased()
