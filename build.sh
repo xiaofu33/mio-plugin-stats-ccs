@@ -7,6 +7,11 @@ BUNDLE_NAME="${PLUGIN_NAME}.bundle"
 BUILD_DIR="build"
 SOURCES="Sources/*.swift"
 
+DO_INSTALL=false
+if [ "$1" = "install" ]; then
+    DO_INSTALL=true
+fi
+
 echo "Building ${PLUGIN_NAME} plugin..."
 
 # Clean
@@ -29,6 +34,15 @@ cp Info.plist "${BUILD_DIR}/${BUNDLE_NAME}/Contents/"
 codesign --force --sign - "${BUILD_DIR}/${BUNDLE_NAME}"
 
 echo "Built ${BUILD_DIR}/${BUNDLE_NAME}"
-echo ""
-echo "Install:"
-echo "  cp -r ${BUILD_DIR}/${BUNDLE_NAME} ~/.config/codeisland/plugins/"
+
+if [ "$DO_INSTALL" = true ]; then
+    PLUGINS_DIR="$HOME/.config/codeisland/plugins"
+    mkdir -p "$PLUGINS_DIR"
+    rm -rf "$PLUGINS_DIR/$BUNDLE_NAME"
+    cp -r "${BUILD_DIR}/${BUNDLE_NAME}" "$PLUGINS_DIR/"
+    echo "Installed to $PLUGINS_DIR/$BUNDLE_NAME"
+else
+    echo ""
+    echo "Install:"
+    echo "  cp -r ${BUILD_DIR}/${BUNDLE_NAME} ~/.config/codeisland/plugins/"
+fi

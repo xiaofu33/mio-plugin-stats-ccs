@@ -8,6 +8,17 @@
 
 import Foundation
 
+// MARK: - Per-model usage breakdown
+
+struct ModelUsageBreakdown: Equatable, Sendable, Codable {
+    let requestCount: Int
+    let inputTokens: Int
+    let outputTokens: Int
+    let totalCostUsd: Double
+
+    static let zero = ModelUsageBreakdown(requestCount: 0, inputTokens: 0, outputTokens: 0, totalCostUsd: 0)
+}
+
 struct DailyReport: Equatable, Sendable, Codable {
     let date: Date
     let sessionCount: Int
@@ -38,9 +49,27 @@ struct DailyReport: Equatable, Sendable, Codable {
     /// Per-project focus minutes. Sum equals focusMinutes (approximately).
     let projectTimes: [String: Int]
 
+    // MARK: - Token / cost fields
+
+    /// Total input tokens consumed for this day.
+    let inputTokens: Int
+    /// Total output tokens generated for this day.
+    let outputTokens: Int
+    /// Total cache-read tokens.
+    let cacheReadTokens: Int
+    /// Total cache-creation tokens.
+    let cacheCreationTokens: Int
+    /// Total API cost in USD.
+    let totalCostUsd: Double
+    /// Per-model usage breakdown.
+    let modelUsage: [String: ModelUsageBreakdown]
+
     var hasActivity: Bool {
-        sessionCount > 0 && turnCount > 0
+        turnCount > 0 && (inputTokens > 0 || outputTokens > 0)
     }
+
+    /// Total tokens (input + output).
+    var totalTokens: Int { inputTokens + outputTokens }
 
     static func empty(date: Date) -> DailyReport {
         DailyReport(
@@ -61,7 +90,13 @@ struct DailyReport: Equatable, Sendable, Codable {
             lastActivity: nil,
             flowBlockCount: 0,
             longestFlowBlockMinutes: 0,
-            projectTimes: [:]
+            projectTimes: [:],
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+            totalCostUsd: 0,
+            modelUsage: [:]
         )
     }
 }
@@ -92,7 +127,16 @@ struct WeeklyReport: Equatable, Sendable, Codable {
     let longestFlowBlockMinutes: Int
     let projectTimes: [String: Int]
 
+    // MARK: - Token / cost aggregates
+
+    let inputTokens: Int
+    let outputTokens: Int
+    let cacheReadTokens: Int
+    let cacheCreationTokens: Int
+    let totalCostUsd: Double
+
     var hasActivity: Bool { turnCount > 0 }
+    var totalTokens: Int { inputTokens + outputTokens }
 
     static func aggregate(_ days: [DailyReport]) -> WeeklyReport {
         let turns = days.reduce(0) { $0 + $1.turnCount }
@@ -143,6 +187,13 @@ struct WeeklyReport: Equatable, Sendable, Codable {
             }
         }
 
+        // Token / cost aggregates
+        let inTokens = days.reduce(0) { $0 + $1.inputTokens }
+        let outTokens = days.reduce(0) { $0 + $1.outputTokens }
+        let cacheRead = days.reduce(0) { $0 + $1.cacheReadTokens }
+        let cacheCreate = days.reduce(0) { $0 + $1.cacheCreationTokens }
+        let totalCost = days.reduce(0.0) { $0 + $1.totalCostUsd }
+
         var streak = 0
         for d in days.reversed() {
             if d.hasActivity { streak += 1 } else { break }
@@ -168,7 +219,12 @@ struct WeeklyReport: Equatable, Sendable, Codable {
             lastActivity: lastActivity,
             flowBlockCount: flowBlocks,
             longestFlowBlockMinutes: longestFlow,
-            projectTimes: projectTimeSum
+            projectTimes: projectTimeSum,
+            inputTokens: inTokens,
+            outputTokens: outTokens,
+            cacheReadTokens: cacheRead,
+            cacheCreationTokens: cacheCreate,
+            totalCostUsd: totalCost
         )
     }
 }

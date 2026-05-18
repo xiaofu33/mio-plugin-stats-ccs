@@ -89,8 +89,8 @@ struct StatsView: View {
         let isDay = mode == .day
 
         VStack(alignment: .leading, spacing: 0) {
-            // 1. Masthead
-            masthead(week: week, yesterday: yesterday, isDay: isDay)
+            // 1. Summary header (Dynamic Island — total token & cost)
+            summaryHeader(week: week, yesterday: yesterday, isDay: isDay)
                 .padding(.top, 14)
 
             thickRule.padding(.top, 8)
@@ -152,56 +152,62 @@ struct StatsView: View {
         .animation(.easeInOut(duration: 0.25), value: mode)
     }
 
-    // MARK: - Masthead
+    // MARK: - Summary Header (Dynamic Island)
 
     @ViewBuilder
-    private func masthead(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> some View {
+    private func summaryHeader(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> some View {
+        let inTok = isDay ? yesterday.inputTokens : week.inputTokens
+        let outTok = isDay ? yesterday.outputTokens : week.outputTokens
+        let cost = isDay ? yesterday.totalCostUsd : week.totalCostUsd
+        let totalTok = inTok + outTok
+
         VStack(spacing: 6) {
             thickRule
 
-            HStack {
-                Text(Self.paperTitle)
-                    .font(.system(size: 11, weight: .black, design: .serif))
-                    .tracking(2)
-                    .foregroundColor(Self.ink.opacity(0.9))
-
+            // Token & cost numbers — the main attraction
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 10) {
+                        statValue(Self.formatTokens(totalTok), label: L10n.isChinese ? "总消耗" : "TOKENS")
+                        statValue(Self.formatCost(cost), label: "COST")
+                    }
+                }
                 Spacer()
-
                 modeToggle
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
 
             thinRule
 
+            // Subtle branding line
             HStack {
-                Text(volumeLine(week: week, yesterday: yesterday, isDay: isDay))
+                Text(Self.brandLine(week: week, yesterday: yesterday, isDay: isDay))
                     .font(.system(size: 8, weight: .semibold))
                     .tracking(1.4)
-                    .foregroundColor(Self.ink.opacity(0.5))
+                    .foregroundColor(Self.ink.opacity(0.45))
                 Spacer()
-                Text(Self.tagline)
-                    .font(.system(size: 8, weight: .medium, design: .serif))
-                    .italic()
-                    .foregroundColor(Self.ink.opacity(0.5))
             }
             .padding(.horizontal, 16)
-            .padding(.top, 4)
+            .padding(.bottom, 2)
         }
     }
 
-    private static let paperTitle: String = L10n.isChinese
-        ? "代码岛时报"
-        : "THE CODE ISLAND DAILY"
+    private func statValue(_ value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(Self.ink.opacity(0.95))
+                .monospacedDigit()
+            Text(label)
+                .font(.system(size: 8, weight: .bold))
+                .tracking(1.5)
+                .foregroundColor(Self.ink.opacity(0.4))
+        }
+    }
 
-    private static let tagline: String = L10n.isChinese
-        ? "带着意图工作"
-        : "\"WORK WITH INTENTION\""
-
-    private func volumeLine(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> String {
+    private static func brandLine(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> String {
         let cal = Calendar.current
-        let doy = cal.ordinality(of: .day, in: .year, for: yesterday.date) ?? 0
-        let issue = "VOL. I  ·  NO. \(doy)"
         let date: String
         if isDay {
             date = L10n.dayDate(yesterday.date).uppercased()
@@ -209,7 +215,7 @@ struct StatsView: View {
             let start = week.days.first?.date ?? yesterday.date
             date = L10n.weekRange(start, yesterday.date).uppercased()
         }
-        return "\(issue)  ·  \(date)"
+        return "\(L10n.isChinese ? "代码岛" : "CODE ISLAND") · \(date)"
     }
 
     private var modeToggle: some View {
@@ -319,23 +325,24 @@ struct StatsView: View {
 
         // Deck = a short "subtitle" paragraph that teases the main numbers
         if isDay {
-            let focusStr = Self.humanMinutes(yesterday.focusMinutes)
-            let turns = yesterday.turnCount
+            let inTok = Self.formatTokens(yesterday.inputTokens)
+            let outTok = Self.formatTokens(yesterday.outputTokens)
+            let cost = Self.formatCost(yesterday.totalCostUsd)
             let deck: String
             if L10n.isChinese {
-                deck = "\(turns) 次活跃互动, \(focusStr) 不间断专注"
+                deck = "\(inTok) 输入 / \(outTok) 输出, 总计 \(cost)"
             } else {
-                deck = "\(turns) active turns, \(focusStr) of uninterrupted focus"
+                deck = "\(inTok) in / \(outTok) out, \(cost) total"
             }
             return (hl, deck)
         } else {
-            let focusStr = Self.humanMinutes(week.focusMinutes)
             let active = week.days.filter(\.hasActivity).count
+            let cost = Self.formatCost(week.totalCostUsd)
             let deck: String
             if L10n.isChinese {
-                deck = "\(active) 天活跃, 总计 \(focusStr) 的专注时长"
+                deck = "\(active) 天活跃, 总计 \(cost)"
             } else {
-                deck = "\(active) active days, \(focusStr) of focused work"
+                deck = "\(active) active days, \(cost) total"
             }
             return (hl, deck)
         }
@@ -343,30 +350,26 @@ struct StatsView: View {
 
     private func headlineText(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> String {
         if isDay {
-            let record = PersonalRecords.check(day: yesterday)
-            if record.anyBroken { return L10n.s("hl.record") }
-
+            let totalTok = yesterday.inputTokens + yesterday.outputTokens
             let turns = yesterday.turnCount
-            let focus = yesterday.focusMinutes
-            let toolSum = yesterday.toolCounts.values.reduce(0, +)
-            let digCount = (yesterday.toolCounts["Bash"] ?? 0)
-                + (yesterday.toolCounts["Grep"] ?? 0)
-                + (yesterday.toolCounts["Read"] ?? 0)
-            let digRatio = toolSum > 0 ? Double(digCount) / Double(toolSum) : 0
-            let lpt = turns > 0 ? Double(yesterday.linesWritten) / Double(turns) : 0
+            let cachePct = totalTok > 0
+                ? Int(Double(yesterday.cacheReadTokens) / Double(totalTok + yesterday.cacheReadTokens) * 100)
+                : 0
+            let models = yesterday.modelUsage.count
+            let hasPro = yesterday.modelUsage.keys.contains { $0.contains("pro") || $0.contains("Pro") }
 
-            if digRatio >= 0.6 && turns >= 30 { return L10n.s("hl.debugging") }
-            if lpt >= 3 && yesterday.linesWritten > 100 { return L10n.s("hl.shipping") }
-            if lpt <= 0.5 && turns >= 30 { return L10n.s("hl.exploring") }
-            if let hour = yesterday.peakHour, (hour >= 22 || hour < 5) { return L10n.s("hl.night") }
-            if yesterday.projectCount >= 3 { return L10n.s("hl.multi") }
-            if focus >= 180 && turns >= 80 { return L10n.s("hl.deepDay") }
-            if focus >= 60 && turns >= 20 { return L10n.s("hl.steady") }
-            if focus < 60 && turns > 0 { return L10n.s("hl.fragmented") }
+            if totalTok > 1_000_000 { return L10n.s("hl.heavy") }
+            if hasPro && totalTok > 200_000 { return L10n.s("hl.premium") }
+            if cachePct >= 60 { return L10n.s("hl.cacheEfficient") }
+            if models >= 2 { return L10n.s("hl.multiModel") }
+            if totalTok > 400_000 && turns >= 200 { return L10n.s("hl.deepDay") }
+            if totalTok > 100_000 && turns >= 50 { return L10n.s("hl.steady") }
+            if turns > 0 { return L10n.s("hl.fragmented") }
             return L10n.s("hl.quietDay")
         } else {
             let active = week.days.filter(\.hasActivity).count
-            if week.focusMinutes >= 600 && active >= 5 { return L10n.s("hl.weekProductive") }
+            let totalTok = week.inputTokens + week.outputTokens
+            if totalTok >= 3_000_000 && active >= 5 { return L10n.s("hl.weekProductive") }
             let maxDay = week.days.map(\.turnCount).max() ?? 0
             let concentration = week.turnCount > 0 ? Double(maxDay) / Double(week.turnCount) : 0
             if concentration >= 0.5 { return L10n.s("hl.weekUneven") }
@@ -378,26 +381,21 @@ struct StatsView: View {
     // MARK: - Stat strip (4-column bordered band)
 
     private func statStrip(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> some View {
-        let focusStr: String = {
-            let mins = isDay ? yesterday.focusMinutes : week.focusMinutes
-            let h = mins / 60
-            let m = mins % 60
-            return String(format: "%d:%02d", h, m)
-        }()
-        let turns = isDay ? yesterday.turnCount : week.turnCount
-        let flow = isDay ? yesterday.flowBlockCount : week.flowBlockCount
-        let lines = isDay ? yesterday.linesWritten : week.linesWritten
+        let inTok = isDay ? yesterday.inputTokens : week.inputTokens
+        let outTok = isDay ? yesterday.outputTokens : week.outputTokens
+        let cacheTok = isDay ? yesterday.cacheReadTokens : week.cacheReadTokens
+        let cost = isDay ? yesterday.totalCostUsd : week.totalCostUsd
 
         return VStack(spacing: 0) {
             thinRule
             HStack(spacing: 0) {
-                statCell(label: L10n.isChinese ? "专注" : "FOCUS", value: focusStr)
+                statCell(label: L10n.isChinese ? "输入" : "INPUT", value: Self.formatTokens(inTok))
                 statDivider
-                statCell(label: L10n.isChinese ? "互动" : "TURNS", value: "\(turns)")
+                statCell(label: L10n.isChinese ? "输出" : "OUTPUT", value: Self.formatTokens(outTok))
                 statDivider
-                statCell(label: L10n.isChinese ? "心流" : "FLOW", value: "\(flow)")
+                statCell(label: L10n.isChinese ? "缓存" : "CACHE", value: Self.formatTokens(cacheTok))
                 statDivider
-                statCell(label: L10n.isChinese ? "代码行" : "LINES", value: "\(lines)")
+                statCell(label: L10n.isChinese ? "花费" : "COST", value: Self.formatCost(cost))
             }
             .padding(.vertical, 14)
             thinRule
@@ -479,38 +477,31 @@ struct StatsView: View {
     private func dataSheetRows(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> [(String, String)] {
         var rows: [(String, String)] = []
         if isDay {
-            rows.append((L10n.isChinese ? "会话数" : "sessions", "\(yesterday.sessionCount)"))
-            rows.append((L10n.isChinese ? "项目数" : "projects", "\(yesterday.projectCount)"))
-            if let p = yesterday.primaryProjectName {
-                rows.append((L10n.isChinese ? "主项目" : "primary", truncate(p, 12)))
+            let totalTok = yesterday.inputTokens + yesterday.outputTokens
+            rows.append((L10n.isChinese ? "请求数" : "requests", "\(yesterday.turnCount)"))
+            rows.append((L10n.isChinese ? "模型数" : "models", "\(yesterday.modelUsage.count)"))
+            rows.append((L10n.isChinese ? "总 Token" : "total tokens", Self.formatTokens(totalTok)))
+            if yesterday.cacheReadTokens > 0 {
+                let pct = totalTok > 0 ? Int(Double(yesterday.cacheReadTokens) / Double(totalTok + yesterday.cacheReadTokens) * 100) : 0
+                rows.append((L10n.isChinese ? "缓存率" : "cache", "\(pct)%"))
             }
-            if yesterday.longestFlowBlockMinutes > 0 {
-                rows.append((L10n.isChinese ? "最长专注" : "longest", "\(yesterday.longestFlowBlockMinutes)m"))
-            }
-            if let h = yesterday.peakHour {
-                rows.append((L10n.isChinese ? "高峰时段" : "peak hour", String(format: "%02d:00", h)))
-            }
-            if let first = yesterday.firstActivity, let last = yesterday.lastActivity {
-                rows.append((L10n.isChinese ? "工作窗口" : "window",
-                             "\(L10n.clockTime(first))–\(L10n.clockTime(last))"))
-            }
-            if yesterday.filesEdited > 0 {
-                rows.append((L10n.isChinese ? "文件数" : "files", "\(yesterday.filesEdited)"))
+            // Top-2 models by cost
+            let topModels = yesterday.modelUsage.sorted { $0.value.totalCostUsd > $1.value.totalCostUsd }.prefix(2)
+            for (model, usage) in topModels {
+                let shortName = Self.shortModelName(model)
+                let costStr = Self.formatCost(usage.totalCostUsd)
+                rows.append((shortName, costStr))
             }
         } else {
             let active = week.days.filter(\.hasActivity).count
+            let totalTok = week.inputTokens + week.outputTokens
             rows.append((L10n.isChinese ? "活跃天数" : "active days", "\(active) / 7"))
-            rows.append((L10n.isChinese ? "会话数" : "sessions", "\(week.sessionCount)"))
-            rows.append((L10n.isChinese ? "项目数" : "projects", "\(week.projectCount)"))
-            if let p = week.primaryProjectName {
-                rows.append((L10n.isChinese ? "主项目" : "primary", truncate(p, 12)))
-            }
-            if week.longestFlowBlockMinutes > 0 {
-                rows.append((L10n.isChinese ? "最长专注" : "longest", "\(week.longestFlowBlockMinutes)m"))
-            }
-            rows.append((L10n.isChinese ? "心流段数" : "flow blocks", "\(week.flowBlockCount)"))
-            if week.filesEdited > 0 {
-                rows.append((L10n.isChinese ? "文件数" : "files", "\(week.filesEdited)"))
+            rows.append((L10n.isChinese ? "总请求" : "total requests", "\(week.turnCount)"))
+            rows.append((L10n.isChinese ? "总 Token" : "total tokens", Self.formatTokens(totalTok)))
+            rows.append((L10n.isChinese ? "总花费" : "total cost", Self.formatCost(week.totalCostUsd)))
+            if week.cacheReadTokens > 0 {
+                let pct = totalTok > 0 ? Int(Double(week.cacheReadTokens) / Double(totalTok + week.cacheReadTokens) * 100) : 0
+                rows.append((L10n.isChinese ? "缓存率" : "cache", "\(pct)%"))
             }
             if week.streak > 0 {
                 rows.append((L10n.isChinese ? "连续天数" : "streak", "\(week.streak)"))
@@ -556,55 +547,51 @@ struct StatsView: View {
 
     private func bodyText(week: WeeklyReport, yesterday: DailyReport, isDay: Bool, lastWeek: WeeklyReport?) -> String {
         if isDay {
-            if let insight = smartInsight(yesterday: yesterday, week: week, lastWeek: lastWeek) {
-                return insight
-            }
-            if yesterday.projectTimes.count >= 2 {
-                let sorted = yesterday.projectTimes.sorted { $0.value > $1.value }.prefix(3)
-                return sorted.map { "<hi>\(Self.formatMinutes($0.value))</hi> \(L10n.isChinese ? "在" : "on") \($0.key)" }
-                    .joined(separator: L10n.isChinese ? "  ·  " : "  ·  ")
+            let inTok = Self.formatTokens(yesterday.inputTokens)
+            let outTok = Self.formatTokens(yesterday.outputTokens)
+            let cost = Self.formatCost(yesterday.totalCostUsd)
+            let models = yesterday.modelUsage.keys.map(Self.shortModelName).joined(separator: ", ")
+            if !models.isEmpty {
+                return L10n.tpl("body.dayTokens", [
+                    "in": "<hi>\(inTok)</hi>",
+                    "out": "<hi>\(outTok)</hi>",
+                    "cost": cost,
+                    "models": models
+                ])
             }
             let turns = yesterday.turnCount
-            let sessions = yesterday.sessionCount
-            let sessionLabel = sessions >= 3 ? L10n.s("label.deepSession") : L10n.s("label.session")
-            if let project = yesterday.primaryProjectName {
-                return L10n.tpl("body.dayWithProject", [
-                    "turns": "<hi>\(turns)</hi>",
-                    "sessions": "<hi>\(sessions)</hi>",
-                    "sessionLabel": sessionLabel,
-                    "project": project
-                ])
-            } else {
-                return L10n.tpl("body.dayNoProject", [
-                    "turns": "<hi>\(turns)</hi>",
-                    "sessions": "<hi>\(sessions)</hi>",
-                    "sessionLabel": sessionLabel
-                ])
-            }
+            return L10n.tpl("body.dayNoProject", [
+                "turns": "<hi>\(turns)</hi>",
+                "cost": cost
+            ])
         } else {
             let active = week.days.filter(\.hasActivity).count
-            let peak = week.peakDay
-            let peakName = peak.map { L10n.weekdayShort(for: $0.date) } ?? ""
+            let totalTok = Self.formatTokens(week.inputTokens + week.outputTokens)
             return L10n.tpl("body.week", [
                 "activeDays": "<hi>\(active)</hi>",
-                "weekday": peakName
+                "tokens": totalTok
             ])
         }
     }
 
     private func smartInsight(yesterday: DailyReport, week: WeeklyReport, lastWeek: WeeklyReport?) -> String? {
-        let rec = PersonalRecords.check(day: yesterday)
-        if rec.brokeTurns && yesterday.turnCount >= 50 {
-            return L10n.tpl("insight.newRecordTurns", ["n": "<hi>\(yesterday.turnCount)</hi>"])
+        let totalTok = yesterday.inputTokens + yesterday.outputTokens
+        if totalTok > 500_000 {
+            return L10n.tpl("insight.heavyTokenUsage", ["n": "<hi>\(Self.formatTokens(totalTok))</hi>"])
         }
-        if rec.brokeFocus && yesterday.focusMinutes >= 120 {
-            return L10n.s("insight.newRecordFocus")
+        if yesterday.totalCostUsd > 0.50 {
+            return L10n.s("insight.premiumCost")
         }
-        let twoWeekMax = (week.days + (lastWeek?.days ?? []))
-            .map { $0.longestFlowBlockMinutes }
-            .max() ?? 0
-        if yesterday.longestFlowBlockMinutes > 0 && yesterday.longestFlowBlockMinutes >= twoWeekMax {
-            return L10n.s("insight.longestFlow")
+        let cachePct = totalTok > 0
+            ? Int(Double(yesterday.cacheReadTokens) / Double(totalTok + yesterday.cacheReadTokens) * 100)
+            : 0
+        if cachePct >= 70 {
+            return L10n.s("insight.highCache")
+        }
+        let multiModel = yesterday.modelUsage.count >= 2
+        if multiModel {
+            let models = yesterday.modelUsage.keys.map(Self.shortModelName).joined(separator: ", ")
+            return L10n.tpl("insight.multiModel", ["models": models])
         }
         if week.streak == 3 || week.streak == 7 || week.streak == 14 {
             return L10n.tpl("insight.streakMilestone", ["n": "<hi>\(week.streak)</hi>"])
@@ -654,18 +641,25 @@ struct StatsView: View {
                 "turns": "\(peak.turnCount)"
             ]))
         }
-        if week.longestFlowBlockMinutes > 0, let date = week.peakBurstDate {
-            lines.append(L10n.tpl("highlight.longestStretch", [
-                "weekday": L10n.weekdayShort(for: date),
-                "min": "\(week.longestFlowBlockMinutes)"
-            ]))
+        if week.totalCostUsd > 0 {
+            lines.append(L10n.tpl("highlight.totalCost", ["cost": Self.formatCost(week.totalCostUsd)]))
+        }
+        let totalTok = week.inputTokens + week.outputTokens
+        if totalTok > 1_000_000 {
+            lines.append(L10n.tpl("highlight.totalTokens", ["n": Self.formatTokens(totalTok)]))
+        }
+        if week.cacheReadTokens > 0 {
+            let pct = Int(Double(week.cacheReadTokens) / Double(totalTok + week.cacheReadTokens) * 100)
+            if pct >= 30 {
+                lines.append(L10n.tpl("highlight.cacheRate", ["pct": "\(pct)"]))
+            }
         }
         if week.streak >= 3 {
             lines.append(L10n.tpl("highlight.streak", ["n": "\(week.streak)"]))
         }
         if let lw = lastWeek, lw.hasActivity {
-            let diff = week.turnCount - lw.turnCount
-            let pct = lw.turnCount > 0 ? Int((Double(abs(diff)) / Double(lw.turnCount) * 100).rounded()) : 0
+            let diff = week.totalCostUsd - lw.totalCostUsd
+            let pct = lw.totalCostUsd > 0 ? Int((abs(diff) / lw.totalCostUsd * 100).rounded()) : 0
             if pct >= 10 {
                 if diff > 0 {
                     lines.append(L10n.tpl("highlight.vsLastWeek", ["pct": "\(pct)"]))
@@ -673,9 +667,6 @@ struct StatsView: View {
                     lines.append(L10n.tpl("highlight.vsLastWeekDown", ["pct": "\(pct)"]))
                 }
             }
-        }
-        if week.filesEdited > 0 {
-            lines.append(L10n.tpl("highlight.files", ["n": "\(week.filesEdited)"]))
         }
         return lines
     }
@@ -706,22 +697,51 @@ struct StatsView: View {
     }
 
     private func breakdownSections(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> [Breakdown] {
-        let tools = isDay ? yesterday.toolCounts : week.toolCounts
-        let skills = isDay ? yesterday.skillCounts : week.skillCounts
-        let mcps = isDay ? yesterday.mcpServerCounts : week.mcpServerCounts
+        let usage = isDay ? yesterday.modelUsage : {
+            var merged: [String: ModelUsageBreakdown] = [:]
+            for d in week.days {
+                for (model, u) in d.modelUsage {
+                    let ex = merged[model] ?? .zero
+                    merged[model] = ModelUsageBreakdown(
+                        requestCount: ex.requestCount + u.requestCount,
+                        inputTokens: ex.inputTokens + u.inputTokens,
+                        outputTokens: ex.outputTokens + u.outputTokens,
+                        totalCostUsd: ex.totalCostUsd + u.totalCostUsd
+                    )
+                }
+            }
+            return merged
+        }()
+
         var out: [Breakdown] = []
-        let topTools = tools.sorted { $0.value > $1.value }.prefix(6).map { ($0.key, $0.value) }
-        if !topTools.isEmpty {
-            out.append(Breakdown(title: L10n.s("section.tools"), items: Array(topTools)))
+
+        // Model cost breakdown
+        let costItems = usage
+            .sorted { $0.value.totalCostUsd > $1.value.totalCostUsd }
+            .prefix(4)
+            .map { (Self.shortModelName($0.key), Int($0.value.totalCostUsd * 100_000)) }
+        if !costItems.isEmpty {
+            out.append(Breakdown(title: L10n.isChinese ? "模型 (成本)" : "MODELS (COST)", items: costItems))
         }
-        let topSkills = skills.sorted { $0.value > $1.value }.prefix(6).map { ($0.key, $0.value) }
-        if !topSkills.isEmpty {
-            out.append(Breakdown(title: L10n.s("section.skills"), items: Array(topSkills)))
+
+        // Token volume per model
+        let tokItems = usage
+            .sorted { ($0.value.inputTokens + $0.value.outputTokens) > ($1.value.inputTokens + $1.value.outputTokens) }
+            .prefix(4)
+            .map { (Self.shortModelName($0.key), $0.value.inputTokens + $0.value.outputTokens) }
+        if !tokItems.isEmpty {
+            out.append(Breakdown(title: L10n.isChinese ? "Token 用量" : "TOKEN VOLUME", items: tokItems))
         }
-        let topMcps = mcps.sorted { $0.value > $1.value }.prefix(6).map { ($0.key, $0.value) }
-        if !topMcps.isEmpty {
-            out.append(Breakdown(title: L10n.s("section.mcp"), items: Array(topMcps)))
+
+        // Request count per model
+        let reqItems = usage
+            .sorted { $0.value.requestCount > $1.value.requestCount }
+            .prefix(4)
+            .map { (Self.shortModelName($0.key), $0.value.requestCount) }
+        if !reqItems.isEmpty {
+            out.append(Breakdown(title: L10n.isChinese ? "请求次数" : "REQUESTS", items: reqItems))
         }
+
         return out
     }
 
@@ -879,15 +899,58 @@ struct StatsView: View {
 
     // MARK: - Helpers
 
-    private static func humanMinutes(_ minutes: Int) -> String {
-        if minutes < 60 { return "\(minutes)m" }
-        let h = minutes / 60
-        let m = minutes % 60
-        if m == 0 { return "\(h)h" }
-        return "\(h)h\(m)m"
+    /// Format a token count for display (e.g. 445871 → "436K", 12036224 → "11.5M").
+    private static func formatTokens(_ count: Int) -> String {
+        if count >= 1_000_000 {
+            let val = Double(count) / 1_000_000
+            if val >= 10 { return String(format: "%.0fM", val) }
+            return String(format: "%.1fM", val)
+        } else if count >= 1_000 {
+            let val = Double(count) / 1_000
+            if val >= 100 { return String(format: "%.0fK", val) }
+            return String(format: "%.1fK", val)
+        }
+        return "\(count)"
     }
 
-    private static func formatMinutes(_ minutes: Int) -> String {
-        humanMinutes(minutes)
+    /// Format a USD cost for display (e.g. 0.472841 → "$0.473").
+    private static func formatCost(_ cost: Double) -> String {
+        if cost < 0.01 {
+            return String(format: "$%.4f", cost)
+        } else if cost < 1 {
+            return String(format: "$%.3f", cost)
+        } else if cost < 100 {
+            return String(format: "$%.2f", cost)
+        }
+        return String(format: "$%.1f", cost)
+    }
+
+    /// Shorten a model identifier for display.
+    /// deepseek-v4-flash → DS V4 Flash, claude-sonnet-4-6-20260217 → Sonnet 4.6
+    private static func shortModelName(_ model: String) -> String {
+        // Strip known prefixes
+        var name = model
+            .replacingOccurrences(of: "claude-", with: "")
+            .replacingOccurrences(of: "deepseek-", with: "DS ")
+            .replacingOccurrences(of: "gpt-", with: "GPT ")
+            .replacingOccurrences(of: "gemini-", with: "Gemini ")
+            .replacingOccurrences(of: "kimi-", with: "Kimi ")
+            .replacingOccurrences(of: "qwen-", with: "Qwen ")
+            .replacingOccurrences(of: "doubao-", with: "Doubao ")
+            .replacingOccurrences(of: "glm-", with: "GLM ")
+            .replacingOccurrences(of: "mistral-", with: "Mistral ")
+            .replacingOccurrences(of: "minimax-", with: "MiniMax ")
+        // Strip trailing date segments (e.g. -20260217)
+        if name.count >= 12,
+           let dashIdx = name.lastIndex(of: "-"),
+           dashIdx > name.index(name.endIndex, offsetBy: -12) {
+            let suffix = String(name[dashIdx...])
+            if suffix.count == 9 && suffix.dropFirst().allSatisfy(\.isNumber) {
+                name = String(name[..<dashIdx])
+            }
+        }
+        return name
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespaces)
     }
 }
