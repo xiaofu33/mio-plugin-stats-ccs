@@ -68,8 +68,8 @@ struct DailyReport: Equatable, Sendable, Codable {
         turnCount > 0 && (inputTokens > 0 || outputTokens > 0)
     }
 
-    /// Total tokens (input + output).
-    var totalTokens: Int { inputTokens + outputTokens }
+    /// Total tokens (input + output + cache-read).
+    var totalTokens: Int { inputTokens + outputTokens + cacheReadTokens }
 
     static func empty(date: Date) -> DailyReport {
         DailyReport(
@@ -136,7 +136,7 @@ struct WeeklyReport: Equatable, Sendable, Codable {
     let totalCostUsd: Double
 
     var hasActivity: Bool { turnCount > 0 }
-    var totalTokens: Int { inputTokens + outputTokens }
+    var totalTokens: Int { inputTokens + outputTokens + cacheReadTokens }
 
     static func aggregate(_ days: [DailyReport]) -> WeeklyReport {
         let turns = days.reduce(0) { $0 + $1.turnCount }

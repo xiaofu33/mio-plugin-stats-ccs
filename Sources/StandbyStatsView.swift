@@ -13,7 +13,7 @@ struct StandbyStatsView: View {
 
     var body: some View {
         if let week = analytics.thisWeek {
-            let totalTok = week.inputTokens + week.outputTokens
+            let totalTok = week.totalTokens
             HStack(spacing: 10) {
                 HStack(spacing: 3) {
                     Image(systemName: "t.circle.fill")

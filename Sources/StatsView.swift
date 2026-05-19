@@ -156,10 +156,8 @@ struct StatsView: View {
 
     @ViewBuilder
     private func summaryHeader(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> some View {
-        let inTok = isDay ? yesterday.inputTokens : week.inputTokens
-        let outTok = isDay ? yesterday.outputTokens : week.outputTokens
         let cost = isDay ? yesterday.totalCostUsd : week.totalCostUsd
-        let totalTok = inTok + outTok
+        let totalTok = isDay ? yesterday.totalTokens : week.totalTokens
 
         VStack(spacing: 6) {
             thickRule
@@ -349,10 +347,10 @@ struct StatsView: View {
 
     private func headlineText(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> String {
         if isDay {
-            let totalTok = yesterday.inputTokens + yesterday.outputTokens
+            let totalTok = yesterday.totalTokens
             let turns = yesterday.turnCount
             let cachePct = totalTok > 0
-                ? Int(Double(yesterday.cacheReadTokens) / Double(totalTok + yesterday.cacheReadTokens) * 100)
+                ? Int(Double(yesterday.cacheReadTokens) / Double(totalTok) * 100)
                 : 0
             let models = yesterday.modelUsage.count
             let hasPro = yesterday.modelUsage.keys.contains { $0.contains("pro") || $0.contains("Pro") }
@@ -367,7 +365,7 @@ struct StatsView: View {
             return L10n.s("hl.quietDay")
         } else {
             let active = week.days.filter(\.hasActivity).count
-            let totalTok = week.inputTokens + week.outputTokens
+            let totalTok = week.totalTokens
             if totalTok >= 3_000_000 && active >= 5 { return L10n.s("hl.weekProductive") }
             let maxDay = week.days.map(\.turnCount).max() ?? 0
             let concentration = week.turnCount > 0 ? Double(maxDay) / Double(week.turnCount) : 0
@@ -459,12 +457,12 @@ struct StatsView: View {
     private func dataSheetRows(week: WeeklyReport, yesterday: DailyReport, isDay: Bool) -> [(String, String)] {
         var rows: [(String, String)] = []
         if isDay {
-            let totalTok = yesterday.inputTokens + yesterday.outputTokens
+            let totalTok = yesterday.totalTokens
             rows.append((L10n.isChinese ? "请求数" : "requests", "\(yesterday.turnCount)"))
             rows.append((L10n.isChinese ? "模型数" : "models", "\(yesterday.modelUsage.count)"))
             rows.append((L10n.isChinese ? "总 Token" : "total tokens", Self.formatTokens(totalTok)))
             if yesterday.cacheReadTokens > 0 {
-                let pct = totalTok > 0 ? Int(Double(yesterday.cacheReadTokens) / Double(totalTok + yesterday.cacheReadTokens) * 100) : 0
+                let pct = totalTok > 0 ? Int(Double(yesterday.cacheReadTokens) / Double(totalTok) * 100) : 0
                 rows.append((L10n.isChinese ? "缓存率" : "cache", "\(pct)%"))
             }
             // Top-2 models by cost
@@ -476,13 +474,13 @@ struct StatsView: View {
             }
         } else {
             let active = week.days.filter(\.hasActivity).count
-            let totalTok = week.inputTokens + week.outputTokens
+            let totalTok = week.totalTokens
             rows.append((L10n.isChinese ? "活跃天数" : "active days", "\(active) / 7"))
             rows.append((L10n.isChinese ? "总请求" : "total requests", "\(week.turnCount)"))
             rows.append((L10n.isChinese ? "总 Token" : "total tokens", Self.formatTokens(totalTok)))
             rows.append((L10n.isChinese ? "总花费" : "total cost", Self.formatCost(week.totalCostUsd)))
             if week.cacheReadTokens > 0 {
-                let pct = totalTok > 0 ? Int(Double(week.cacheReadTokens) / Double(totalTok + week.cacheReadTokens) * 100) : 0
+                let pct = totalTok > 0 ? Int(Double(week.cacheReadTokens) / Double(totalTok) * 100) : 0
                 rows.append((L10n.isChinese ? "缓存率" : "cache", "\(pct)%"))
             }
             if week.streak > 0 {
@@ -542,12 +540,12 @@ struct StatsView: View {
         if week.totalCostUsd > 0 {
             lines.append(L10n.tpl("highlight.totalCost", ["cost": Self.formatCost(week.totalCostUsd)]))
         }
-        let totalTok = week.inputTokens + week.outputTokens
+        let totalTok = week.totalTokens
         if totalTok > 1_000_000 {
             lines.append(L10n.tpl("highlight.totalTokens", ["n": Self.formatTokens(totalTok)]))
         }
         if week.cacheReadTokens > 0 {
-            let pct = Int(Double(week.cacheReadTokens) / Double(totalTok + week.cacheReadTokens) * 100)
+            let pct = Int(Double(week.cacheReadTokens) / Double(totalTok) * 100)
             if pct >= 30 {
                 lines.append(L10n.tpl("highlight.cacheRate", ["pct": "\(pct)"]))
             }
