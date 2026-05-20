@@ -220,6 +220,11 @@ final class AnalyticsCollector: ObservableObject {
     @Published private(set) var hasLoadedOnce: Bool = false
 
     private var midnightTimer: Timer?
+
+    /// Tracks the last calendar day for which we actually queried the DB.
+    /// nil on first launch so the initial recompute always runs.
+    private var lastComputedDayStart: Date?
+
     private init() {}
 
     func start() {
@@ -238,12 +243,13 @@ final class AnalyticsCollector: ObservableObject {
         defer { isComputing = false }
 
         let referenceDay = Self.todayStart()
-        // Check if today is already covered in the cached thisWeek
-        if let days = thisWeek?.days,
-           days.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: referenceDay) }) {
+        // If we already queried the DB for today, skip.
+        if let last = lastComputedDayStart,
+           Calendar.current.isDate(last, inSameDayAs: referenceDay) {
             hasLoadedOnce = true
             return
         }
+        lastComputedDayStart = referenceDay
 
         let (tw, lw) = await Task.detached(priority: .utility) {
             await computeTwoWeeks(referenceDay: referenceDay)
